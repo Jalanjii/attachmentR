@@ -1,0 +1,637 @@
+---
+title: "Adult Attachment Application in R"
+output:
+  html_document:
+    df_print: paged
+    code_folding: hide
+---
+
+This is a psychometrics project delivered to the *Pyschometric Analysis* course I took in Italy. The data was collected from answers to the interactive version of the <a href="https://openpsychometrics.org/tests/ECR.php" target="_blank">Experiences in Close Relationships Scale</a> on adult romantic attachment style developed in 1998 by Kelly Brennan, Catherine Clark and Phillip Shaver. Attachment style is how an individual behaves in relationships with others. The theory behind it is the theory of romantic, or pair-bond and attachment as it was originally formulated by C. Hazan and P. R. Shaver in 1987. 
+
+Ever since Hazan and Shaver (1987) showed that it is possible to use a self-report questionnaire to measure adolescent and adult romantic-attachment orientations, that is, secure, anxious, and avoidant (the three patterns identified by Ainsworth, Blehar, Waters, and Wall in 1978 in their studies of infant-caregiver attachment), a steady stream of variants and extensions of their questionnaire have been proposed. The resulting diversity often gave rise to frustration and confusion in newcomers to the field who wonder which of the many measures to use. In their study Self-report measurement of adult romantic attachment: An integrative overview (1998), Brennan by K. A., Clark, C. L., & Shaver, P. R. attempted to solve this problem by creating an all-purpose reply to future attachment researchers who wish to use self-report measures. 
+
+From their study chapter, the results were promising and suggest that self-report attachment research might benefit from the use of the two scales. One of the scales developed was ECR scale, and they used factor analysis on the ECR scale, they found an alpha of 0.94 for Avoidance and alpha of 0.91 for Anxiety dimensions. *The respective two dimensions of Avoidance and Anxiety and their corresponding alpha results are exactly what I obtained in the presented report.*
+
+The data contains in addition to the 36 questionnaire items three more variables: _age_, _country_, _gender_.
+
+
+__Survey Procedure__
+
+The inventory consists of 36 that must be rated on how characteristic they are of the subject. There are also 51,491 observations. The test should not take most people more than four minutes when tried online. At the end of the test users were asked if their answers were accurate and could be used for research. Only those who answered yes are included here. The variables are likert items and were rated on a five point scale 1-5.
+
+1 : "strongly disagree"
+
+2 : "disagree" 
+
+3 : "neither agree nor disagree"
+
+4 : "agree"
+
+5 : "strongly agree". 
+
+__Items:__
+
+Q1:  "I prefer not to show a partner how I feel deep down." 
+
+Q2:  "I worry about being abandoned.
+
+Q3:  "I am very comfortable being close to romantic partners." 
+
+Q4:  "I worry a lot about my relationships." 
+
+Q5:  "Just when my partner starts to get close to me I find myself pulling away."
+
+Q6:  "I worry that romantic partners wont care about me as much as I care about them."
+
+Q7:  "I get uncomfortable when a romantic partner wants to be very close."
+
+Q8:  "I worry a fair amount about losing my partner."
+
+Q9:  "I don't feel comfortable opening up to romantic partners."
+
+Q10: "I often wish that my partner's feelings for me were as strong as my feelings for him/her." 
+
+Q11: "I want to get close to my partner, but I keep pulling back." 
+
+Q12: "I often want to merge completely with romantic partners, and this sometimes scares them away."
+
+Q13: "I am nervous when partners get too close to me."
+
+Q14: "I worry about being alone." 
+
+Q15: "I feel comfortable sharing my private thoughts and feelings with my partner." 
+
+Q16: "My desire to be very close sometimes scares people away." 
+
+Q17: "I try to avoid getting too close to my partner." 
+
+Q18: "I need a lot of reassurance that I am loved by my partner." 
+
+Q19: "I find it relatively easy to get close to my partner." 
+
+Q20: "Sometimes I feel that I force my partners to show more feeling, more commitment."
+
+Q21: "I find it difficult to allow myself to depend on romantic partners."
+
+Q22: "I do not often worry about being abandoned." 
+
+Q23: "I prefer not to be too close to romantic partners."
+
+Q24: "If I can't get my partner to show interest in me, I get upset or angry." agree".
+
+Q25: "I tell my partner just about everything." 
+
+Q26: "I find that my partner(s) don't want to get as close as I would like." 
+
+Q27: "I usually discuss my problems and concerns with my partner." 
+
+Q28: "When I'm not involved in a relationship, I feel somewhat anxious and insecure."
+
+Q29: "I feel comfortable depending on romantic partners." 
+
+Q30: "I get frustrated when my partner is not around as much as I would like." 
+
+Q31: "I don't mind asking romantic partners for comfort, advice, or help." 
+
+Q32: "I get frustrated if romantic partners are not available when I need them." 
+
+Q33: "It helps to turn to my romantic partner in times of need." 
+
+Q34: "When romantic partners disapprove of me, I feel really bad about myself." 
+
+Q35: "I turn to my partner for many things, including comfort and reassurance." 
+
+Q36: "I resent it when my partner spends time away from me."
+
+Age: age in years, entered as a free response
+
+Gender: 1 if "Male", 2 if "Female, 3 if "Other".
+
+Country: Country declared
+
+```{r, global options, include=F} 
+knitr::opts_chunk$set(message = FALSE, warning = FALSE)
+library(xlsx)
+library("readxl")
+library(dplyr)
+library(tidyr)
+library(viridis)
+library(devtools)
+library(reshape2)
+library(formattable)
+library(lattice)
+library(GGally)
+library(psych)
+library(REdaS)
+library(GPArotation)
+library(factoextra)
+library(FactoMineR)
+library(ltm)
+library(CTT)
+library(ggrepel)
+library(nortest)
+library(ggcorrplot)
+library(RColorBrewer)
+library(utils)
+
+# set.seed(2022)
+
+psy_original <- read.csv("psy_data.csv") %>%
+  mutate(gender = ifelse(gender == 0, 2, gender), age = ifelse(age <= 100, age, 17))
+
+#sampling
+siz <- round(nrow(psy_original)*0.3, digits=0)
+samp <- sample(1:nrow(psy_original), siz)
+psy_data <- psy_original[samp, ] %>% 
+  mutate(gender = recode(gender, "1" = "Male", "2" = "Female", "3" = "Other"), gender = factor(gender))
+# psy_data
+```
+
+#### Dataset
+
+The working dataset is a subset (30%) of the original sample
+
+```{r}
+dataset_info <- data.frame(Rows = c(51491, 15447), Columns = c(39, 39))
+rownames(dataset_info) <- c("Original", "Subset")
+dataset_info
+```
+
+
+#### Descriptive statistics & Visualization
+
+```{r}
+desc_stats <- as.data.frame(psych::describe(psy_data[, -c(38, 39)]))
+desc_stats
+
+#Gender
+gender_freq <- as.data.frame(table(psy_data$gender))
+gender <- gender_freq %>% 
+    arrange(desc(Freq)) %>%
+    rename(Gender = Var1, Frequency = Freq)
+ggplot(gender, aes(x=Gender, y = Frequency)) +
+  geom_bar(stat="identity", fill="steelblue") +
+  labs(title = "Gender Frequency")
+
+#top 7 most occuring countries
+country_freq <- as.data.frame(table(psy_data$country))
+country <- country_freq %>% 
+    arrange(desc(Freq)) %>%
+    mutate(Var1 = factor(Var1, levels = Var1)) %>% #to keep order in the plot
+    rename(Countries = Var1, Frequency = Freq) %>% 
+    slice(1:7)
+ggplot(country, aes(x=Countries, y = Frequency)) +
+  geom_bar(stat="identity", fill="steelblue") +
+  labs(title = "Top 7 Occuring Countries Out of 177")
+
+#top 7 most occuring ages
+age_freq <- arrange(as.data.frame(table(psy_data$age)), desc(Freq))
+age <- age_freq %>% 
+    arrange(desc(Freq)) %>%
+    mutate(Var1 = factor(Var1, levels = Var1)) %>% #to keep order in the plot
+    rename(Age = Var1, Frequency = Freq) %>% 
+    slice(1:10)
+ggplot(age, aes(x=Age, y = Frequency)) +
+  geom_bar(stat="identity", fill="steelblue") +
+  labs(title = "Top 7 Occuring Ages")
+```
+
+
+```{r}
+customGreen = "#71CA97"
+customRed = "#ff7f7f"
+
+formater <- function(sig, ineq) {
+  if (ineq == "g") {
+    improvement_formatter <- formatter("span", 
+                      style = x ~ style(
+                      font.weight = "Normal",
+                      color = ifelse(abs(x) >= sig, customGreen, customRed)))}
+  else {
+    improvement_formatter <- formatter("span", 
+                      style = x ~ style(
+                      font.weight = "Normal",
+                      color = ifelse(x <= sig, customGreen, customRed)))}
+  improvement_formatter
+}
+
+normalize <- function(x){
+  return ((x-min(x))/(max(x)-min(x)))
+}
+```
+
+
+We remove the non-quantitative variables, and we only keep quantitative variables.
+
+```{r}
+dataset <- psy_data %>% dplyr::select(-c(37:39))
+head(dataset)
+```
+
+#### Normality
+
+We test the normality of the variables. We plot the distribution for each variable.
+
+```{r}
+pivot_data <- dataset %>%
+  pivot_longer(cols = everything(), names_to = "var", values_to = "Score")
+ggplot(data=pivot_data, aes(x=Score, group=var)) +
+    geom_density(adjust=1.5, color="darkblue", fill="lightblue") +
+    facet_wrap(~var)
+```
+
+#### Anderson-Darling Test for Normality
+
+We are also going to perform the Anderson-Darling test to see if each variable is distributed normally.
+
+```{r}
+lshap <- lapply(dataset, ad.test)
+lres <- t(sapply(lshap, `[`, c("statistic","p.value")))
+to_df <- as_tibble(lres, rownames = 'variable') %>% unnest(-variable)
+# to_df
+
+#Formattable
+formattable(to_df, align = c("l","c","c","c","c", "c", "c", "c", "r"), list(
+  # `statistic` = formater(0.05),
+  `p.value` = formater(0.05, "g")))
+```
+
+As we can see, the p-value for each variable is statistically significant. Therefore, we can state that every variable is not normally distributed. We will compute the correlation matrix for all variables with the Spearman coefficient.
+
+#### Correlation
+
+```{r}
+corrmatrix <- cor(dataset, method = "spearman")
+ggcorrplot(corrmatrix, type = "upper", hc.order = TRUE, colors = brewer.pal(n = 3, name = "PuOr"), tl.cex =9) + 
+  labs(title = "Spearman Correlation")
+```
+
+Next we are going to find the Kaiser-Meyer-Oklin Index, which measures the proportion of variance in variables that might be caused by underlying factors. 
+
+#### Kaiser-Meyer-Oklin Index
+
+This index indicates the proportion of variance in our variables that might be caused by underlying factors. It is about how small the partial correlations are, relative to the original correlations when nothing was controlled. The partial correlation for each pair of variables in the factor analysis is comprised of the correlation between those variables after controlling or partializing out the influence of all of the other variables in the factor analysis. If the variables share common factors, then the partial correlations should be small and the KMO should be close to 1.0.
+
+```{r}
+msa <- as.data.frame(KMO(corrmatrix)$MSA) %>% rename(MSA = `KMO(corrmatrix)$MSA`)
+msa
+```
+
+The value of the KMO is 0.95, which means we can proceed with our analysis.
+
+#### Number of factors
+
+Before we proceed with our analysis, we need to find an optimal number of factors to extract. One way of achieving this is to do Parallel Analysis, which is a method for determining the number of components/factors to retain from PCA/factor analysis. The method works by creating a random dataset with the same numbers of observations and variables as the original data. A correlation matrix is then computed from the randomly generated dataset, then eigenvalues of the correlation matrix are computed. When the eigenvalues from the random data are larger than the eigenvalues from the PCA/factor analysis, we know that the components/factors are mostly random noise. 
+
+```{r}
+fa.parallel(corrmatrix, n.obs = 51491, fm="pa", fa = "fa", main = "Parallel Analysis Scree Plots", n.iter = 7, show.legend = TRUE, sim = TRUE)
+```
+
+Initially, the red dotted line shows the simulated data line. Each point on the blue line that lies above the corresponding simulated data line is a factor or component to extract. Therefore, with the scree plot above, we observe that the suggested number of factors are 8. However, There are also two other known methods for choosing the number of factors. 
+
+* 1) Choosing the number of factors with eigenvalues that are > 1. 
+* 2) The elbow method.
+
+We choose the fist one, therefore, we choose the number 2 of factors.
+
+### __Principal Axis__
+
+In Factor Analysis, we aim to identify lower numbers of unobserved factors (latent variables) that might account for observed data, such that variations in the observed variables mainly reflect the variations in these lower unobserved factors.
+
+For the principal axis extraction method, successive eigenvalue decompositions are done on a correlation matrix with the diagonal replaced by estimates of the communalities of previous iterations for rapid convergence.
+
+We will begin by doing Factor Analysis without rotation.
+
+### {.tabset .tabset-pills}
+
+#### Loadings
+
+Factor Loadings are the degrees how strongly the variables are dependent on/influenced by the latent factor. They are the eigenvectors coefficients multiplied by the square root of the eigenvalues, that is, we "load" the bare coefficient by the amount of variance. Therefore, we make the coefficient to be the measure of association and covariance.
+
+```{r}
+fa_res <- fa(corrmatrix, nfactors = 2, rotate = 'none', fm = 'pa', n.obs = 15447, max.iter = 7)
+load <- as.data.frame(unclass(fa_res$loadings))
+# load
+#Formattable
+formattable(load, align = c("l","c","c","c","c", "c", "c", "c", "r"), list(
+  `PA1` = formater(0.30, "g"),
+  `PA2` = formater(0.30, "g")))
+```
+
+We can see that most of the variables explained by one factor. The number of zero loadings along the number of variables with one significant loading is high. Though, we can see some complex variables. These complex variables are a manifestation of the cross-loading phenomenon, that is, variables are not distinct and separated so that they can be explained by one single factor each.
+
+
+
+#### Variance explained
+
+```{r}
+var <- as.data.frame(fa_res$Vaccounted)
+var
+```
+
+For the cumulative variance, which is the percentage of variance accounted for by our 2 factors. We can see that it is 0.42. 
+
+#### Communality
+
+Communality is the proportion of each variable's variance that can be explained by the factors. They are the sum of squared factor loadings for the variables. 
+
+```{r}
+com <- as.data.frame(fa_res$communality) %>% rename(Communality = `fa_res$communality`)
+# com
+#Formattable
+formattable(com, align = c("l","c","c","c","c", "c", "c", "c", "r"), list(
+  `Communality` = formater(0.5, "g")))
+```
+
+The communalities for each variable are not very high to be salient as the 0.5 value is not frequently reached (if we take 0.5 as a cut-off value for communality).
+
+#### Complexity
+
+Complexity tells us how much an item reflects a single factor. It will be lower for relatively lower loadings. An item specific to a factor should have an item complexity close to one. It equals one if an item loads only on one factor, or 2 if evenly loads on two factors, etc.
+
+```{r}
+complex <- as.data.frame(fa_res$complexity) %>% rename(Complexity = `fa_res$complexity`)
+# complex
+#Formattable
+formattable(complex, align = c("l","c","c","c","c", "c", "c", "c", "r"), list(
+  # `PA1` = formater(0.30),
+  `Complexity` = formater(1.5, "l")))
+```
+
+We observe that there exists some complex variables.
+
+### {-}
+
+#### Path Diagram
+
+```{r}
+fa.diagram(fa_res, sort=TRUE, e.size=.05, rsize=0.5, cex = 1.3, marg=c(0.001, 2, 0.7, 1))
+```
+
+As we can see from the path diagram, that the two factors both explain and not correlated. But, since we still have some complex variables, we are going to rotate the eigenvectors in order to see if we can have a better solution.
+
+#### __Rotation__
+
+Rotation of the factor loadings looks for a solution with the best "simple structure", which is when we find very high (in absolute value) to very low loadings situation. To evaluate the "simple structure", there are five general conditions:
+
+* 1) Each variable (row) should have at least one zero loading.
+* 2) Each factor (column) should have the same number of zero loadings as there are factors. 
+* 3) Each pair of factors should have variables with significant loadings on one and zero loadings on the other.
+* 4) Each pair of factors should have a large proportion of zero loadings on both factors (in the case of four or more factors).
+* 5) Each pair of factors should have few variables with non-zero loadings in both factors.
+
+We will start with oblique rotation.
+
+#### Orthogonal Rotation
+
+We employ the orthogonal rotation with varimax method. An orthogonal rotation minimizes the number of variables that have high loadings on each factor, which simplies the interpretation. 
+
+###  {.tabset .tabset-pills}
+
+#### Loadings
+
+Loadings are the degrees how strongly the variables are dependent on/influenced by the latent factor. They are the eigenvectors coefficients multiplied by the square root of the eigenvalues, that is, we "load" the bare coefficient by the amount of variance. Therefore, we make the coefficient to be the measure of association and covariance.
+
+```{r}
+fa_res_or <- fa(corrmatrix, nfactors = 2, rotate = 'varimax', fm = 'pa', n.obs = 15447, max.iter = 7)
+load_or <- as.data.frame(unclass(fa_res_or$loadings))
+#Formattable
+formattable(load_or, align = c("l","c","c","c","c", "c", "c", "c", "r"), list(
+  `PA1` = formater(0.30, "g"),
+  `PA2` = formater(0.30, "g")))
+```
+
+We have much better loadings. All the variables load on only one factor. This is one of the very important aspects when choosing the right rotation to be picked for our analysis. 
+
+#### Factor Correlation Matrix
+
+It describes the correlations among the factors (For the orthogonal rotation, the factor correlation matrix is an identity matrix)
+
+```{r}
+corr_or <- as.data.frame(fa_res_or$r.scores)
+corr_or
+```
+
+The correlation between the the two factors is non existent. 
+
+#### Structure Matrix
+
+It shows the partial correlations of each variable to each factor. It is a product of multiplying loadings & factor correlation matrix. 
+
+```{r}
+str_or <- as.data.frame(unclass(fa_res_or$Structure))
+str_or
+```
+
+#### Variance explained
+
+```{r}
+var_or <- as.data.frame(fa_res_or$Vaccounted)
+var_or
+```
+
+The explained variance remains the same regardless of the rotation.
+
+#### Communality
+
+Communality values remain the same, regardless of whether we use unrotated factor loadings or rotated factor loadings for the analysis.
+
+```{r}
+com_or <- as.data.frame(fa_res_or$communality) %>% rename(Communality = `fa_res_or$communality`)
+# com_ob
+#Formattable
+formattable(com_or, align = c("l","c","c","c","c", "c", "c", "c", "r"), list(
+  `Communality` = formater(0.4, "g")))
+```
+
+#### Complexity
+
+```{r}
+complex_or <- as.data.frame(fa_res_or$complexity) %>% rename(Complexity = `fa_res_or$complexity`)
+# complex_ob
+#Formattable
+formattable(complex_or, align = c("l","c","c","c","c", "c", "c", "c", "r"), list(
+  # `PA1` = formater(1.5, "g"),
+  `Complexity` = formater(1.5, "l")))
+```
+
+We can see now that we have zero complex variables.
+
+### {-}
+
+###  __Exploratory Factor Analysis Results__
+
+
+```{r}
+fa.diagram(fa_res_or, sort=TRUE, e.size=.05, rsize=0.5, cex = 1.3, marg=c(0.001, 2, 0.7, 1))
+```
+
+The factor analysis results suggest that there are two dimensions of attachment styles, and both are not correlated. We can call these two factors the following:
+
+###  {.tabset .tabset-pills}
+
+#### __PA1__ =  Avoidance 
+
+Q1:  "I prefer not to show a partner how I feel deep down." 
+
+Q3:  "I am very comfortable being close to romantic partners." (R)
+
+Q5:  "Just when my partner starts to get close to me I find myself pulling away."
+
+Q7:  "I get uncomfortable when a romantic partner wants to be very close."
+
+Q9:  "I don't feel comfortable opening up to romantic partners."
+
+Q11: "I want to get close to my partner, but I keep pulling back." 
+
+Q13: "I am nervous when partners get too close to me."
+
+Q15: "I feel comfortable sharing my private thoughts and feelings with my partner."  (R)
+
+Q17: "I try to avoid getting too close to my partner." 
+
+Q19: "I find it relatively easy to get close to my partner." (R)
+
+Q21: "I find it difficult to allow myself to depend on romantic partners."
+
+Q23: "I prefer not to be too close to romantic partners."
+
+Q25: "I tell my partner just about everything." (R)
+
+Q27: "I usually discuss my problems and concerns with my partner." (R)
+
+Q29: "I feel comfortable depending on romantic partners." (R)
+
+Q31: "I don't mind asking romantic partners for comfort, advice, or help." (R)
+
+Q33: "It helps to turn to my romantic partner in times of need." (R)
+
+Q35: "I turn to my partner for many things, including comfort and reassurance." (R)
+
+#### __PA2__ =  Anxiety
+
+Q2:  "I worry about being abandoned.
+
+Q4:  "I worry a lot about my relationships."
+
+Q6:  "I worry that romantic partners wont care about me as much as I care about them."
+
+Q8:  "I worry a fair amount about losing my partner."
+
+Q10: "I often wish that my partner's feelings for me were as strong as my feelings for him/her." 
+
+Q12: "I often want to merge completely with romantic partners, and this sometimes scares them away."
+
+Q14: "I worry about being alone."
+
+Q16: "My desire to be very close sometimes scares people away."
+
+Q18: "I need a lot of reassurance that I am loved by my partner."
+
+Q20: "Sometimes I feel that I force my partners to show more feeling, more commitment."
+
+Q22: "I do not often worry about being abandoned." (R)
+
+Q24: "If I can't get my partner to show interest in me, I get upset or angry." agree".
+
+Q26: "I find that my partner(s) don't want to get as close as I would like."
+
+Q28: "When I'm not involved in a relationship, I feel somewhat anxious and insecure."
+
+Q30: "I get frustrated when my partner is not around as much as I would like."
+
+Q32: "I get frustrated if romantic partners are not available when I need them."
+
+Q34: "When romantic partners disapprove of me, I feel really bad about myself."
+
+Q36: "I resent it when my partner spends time away from me." 
+
+### {-}
+
+### __Reliability__
+
+#### Cronbach
+
+We are going to compute Chronbach's alpha for each factor. Cronbach's alpha is a measure of internal consistency, that is, how closely related a set of items are as a group.
+
+$$\alpha =\frac{K}{K-1} [ 1-\frac{\sum_{i=1}^{K}\sigma^2_{i}}{\sigma^2_t}]$$ Where $k$ = number of items, $\sigma^2_i$ = the variance of each item $i$ for the current sample, $\sigma^2_t$ = total variance of the test.
+
+The standardized Cronbach's alpha computed by is defined as follows $$\alpha_{standardized} = \frac{p \cdot \bar{r}}{1 + (p - 1) \cdot \bar{r}},$$ where \(p\) is the number of items, and \(\bar{r}\) is the average of all (Pearson) correlation coefficients between the items.
+
+
+##### __Avoidance__
+
+```{r}
+Avoidance <- dataset[, c("Q1", "Q3", "Q5", "Q7", "Q9", "Q11", "Q13", "Q15", "Q17", "Q19", "Q21", "Q23", "Q25", "Q27", "Q29", "Q31", "Q33", "Q35")]
+alpha_Avoidance <- alpha(Avoidance, keys = c("Q3", "Q15", "Q19", "Q25", "Q27", "Q29", "Q31", "Q33", "Q35")) #key for reverse
+alpha_Avoidance$total
+```
+
+Avoidance factor has high reliability = 0.93.
+
+##### __Anxiety__
+
+```{r}
+Anxiety <- dataset[, c("Q2", "Q4", "Q6", "Q8", "Q10", "Q12", "Q14", "Q16", "Q18", "Q20", "Q22", "Q24", "Q26", "Q28", "Q30", "Q32", "Q34", "Q36")]
+alpha_Anxiety <- alpha(Anxiety, keys = c("Q22"))
+alpha_Anxiety$total
+```
+
+Anxiety factor has high reliability = 0.91.
+
+### __Inferential Statistics: Factors' scores & Gender__
+
+The aim of this section is to find out whether the scores of Anxiety and Avoidance are associated with gender. As the occurrence of gender Other is very low. I am going to consider only Male & Female genders.
+
+#### Wilcoxon rank sum test
+
+The Wilcoxon rank-sum test is a non-parametric test to assess whether two samples of measures come from the same distribution:
+
+* H0: The two populations are equal.
+* H1: The two populations are not equal.
+
+It is an alternative to the two-sample unpaired t-test and focuses on the medians, the more the data are distributed symmetrically around the median (almost the same number of values above and below the median), the more similar are group means. It doesn't assume:
+
+* Normality.
+* Homogeneity of variances.
+
+```{r}
+###preparing data
+fa_scores_or <- psych::factor.scores(dataset, fa_res_or)$scores
+
+# test_data
+norm_scores <- data.frame(normalize(fa_scores_or))
+gender <- data.frame(gender = psy_data$gender)
+test_data <- cbind(norm_scores, gender) %>%
+  rename(Gender = gender, Anxiety = PA1, Avoidance = PA2) %>% 
+  filter(Gender == "Male" | Gender == "Female")
+
+###Test
+male_data <- test_data %>% filter(Gender == "Male")
+female_data <- test_data %>% filter(Gender == "Female")
+#anxiety
+anxiety_test <- wilcox.test(male_data$Anxiety, female_data$Anxiety, alternative = "two.sided", var.equal = FALSE)
+anxiety_test
+#avoidance
+avoidance_test <- wilcox.test(male_data$Avoidance, female_data$Avoidance, alternative = "two.sided", var.equal = FALSE)
+avoidance_test
+```
+
+Anxiety: We reject at the 5% significance level (p-value <= 0.05) the null hypothesis, which means that the difference in medians is not equal. Therefore there is statistically significant difference between the two gender regarding anxiety.
+
+Avoidance: We reject at the 5% significance level (p-value <= 0.05) the null hypothesis, which means that the difference in medians is not equal. Therefore there is statistically significant difference between the two gender regarding avoidance.
+
+### Conclusions
+
+The reliability of our factors can be considered very good, only one issue remains, which is that the variance explained by factors is not very high as it is at 0.42. With regard to gender's relation to anxiety and avoidance styles, we could see a statistically significant difference between the two groups.
+
+__Dataset__:
+- <a href="https://openpsychometrics.org/_rawdata/" target="_blank">Answers to Experiences in Close Relationships Scale</a>
+    - **Download**: ECR-data-1March2018.zip | **Updated**: 1/03/2018
+
+__References__:
+
+- <a href="https://www.researchgate.net/publication/301325948_Self-report_measurement_of_adult_attachment_An_integrative_overview" target="_blank">Original Paper: Self-report measurement of adult attachment: An integrative overview</a>
+- <a href="https://labs.psychology.illinois.edu/~rcfraley/measures/measures.html" target="_blank">Elaborative Page</a>
+- <a href="https://labs.psychology.illinois.edu/~rcfraley/measures/brennan.html" target="_blank">Summary Results</a>
+- <a href="https://labs.psychology.illinois.edu/~rcfraley/measures/brennan.html" target="_blank">Choosing the Right Type of Rotation in PCA and EFA</a>
